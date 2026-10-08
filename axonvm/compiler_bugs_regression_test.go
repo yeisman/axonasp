@@ -272,3 +272,15 @@ Response.Write ":" & d("a")("x")
 		t.Fatalf("got %q", got)
 	}
 }
+
+// TestDoubleSlashLineComment covers legacy pages with a trailing `//note` after a statement,
+// which IIS tolerates; it used to fail with "Unexpected token *vbscript.PunctuationToken".
+func TestDoubleSlashLineComment(t *testing.T) {
+	got := runVBSAndGetOutput(t, `<%
+s = "a//b"//479698000000206355
+Response.Write s & ":" & (6 / 3) //trailing
+%>`)
+	if got != "a//b:2" {
+		t.Fatalf("got %q", got)
+	}
+}
