@@ -549,7 +549,14 @@ func (vm *VM) adodbConnectionOpen(conn *adodbConnection) {
 		return
 	}
 
-	db, err := sql.Open(driver, dsn)
+	pooled := adodbPooledDriver(driver)
+	var db *sql.DB
+	var err error
+	if pooled {
+		db, err = adodbSharedDB(driver, dsn)
+	} else {
+		db, err = sql.Open(driver, dsn)
+	}
 	if err != nil {
 		vm.adodbConnectionRaiseProviderError(conn, "ADODB.Connection", err.Error(), "")
 		return
@@ -566,15 +573,28 @@ func (vm *VM) adodbConnectionOpen(conn *adodbConnection) {
 	}
 
 	dbConn, err := db.Conn(context.Background())
-	if err != nil {
-		db.Close()
-		vm.adodbConnectionRaiseProviderError(conn, "ADODB.Connection", "connection failed: "+err.Error(), "")
-		return
+	if err == nil {
+		err = dbConn.PingContext(context.Background())
+		if err != nil && pooled {
+			// A pooled connection may have gone stale (server restart, VPN drop).
+			// The failed ping discards it, so retry once on a fresh one.
+			dbConn.Close()
+			if dbConn, err = db.Conn(context.Background()); err == nil {
+				err = dbConn.PingContext(context.Background())
+			}
+		}
+		if err != nil {
+			dbConn.Close()
+			err = fmt.Errorf("ping failed: %w", err)
+		}
+	} else {
+		err = fmt.Errorf("connection failed: %w", err)
 	}
-	if err := dbConn.PingContext(context.Background()); err != nil {
-		dbConn.Close()
-		db.Close()
-		vm.adodbConnectionRaiseProviderError(conn, "ADODB.Connection", "ping failed: "+err.Error(), "")
+	if err != nil {
+		if !pooled {
+			db.Close()
+		}
+		vm.adodbConnectionRaiseProviderError(conn, "ADODB.Connection", err.Error(), "")
 		return
 	}
 
@@ -657,7 +677,9 @@ func (vm *VM) adodbConnectionClose(conn *adodbConnection) {
 			_ = conn.dbConn.Close()
 			conn.dbConn = nil
 		}
-		_ = conn.db.Close()
+		if !adodbPooledDriver(conn.dbDriver) {
+			_ = conn.db.Close()
+		}
 		conn.db = nil
 	}
 	if conn.oleConnection != nil {
@@ -673,6 +695,38 @@ func (vm *VM) adodbConnectionClose(conn *adodbConnection) {
 		})
 	}
 	conn.state = adStateClosed
+}
+
+// adodbPooledDriver reports whether ADODB connections for driver share a process-wide pool,
+// like OLE DB session pooling under IIS. Only SQL Server qualifies: its driver resets the
+// session (temp tables, SET options, open transactions, database) before a pooled
+// connection is reused. SQLite needs a private handle (:memory: databases), and the other
+// drivers do not reset session state between requests.
+func adodbPooledDriver(driver string) bool {
+	return driver == "mssql"
+}
+
+var adodbSharedDBs sync.Map // driver + "\x00" + dsn -> *sql.DB
+
+// adodbSharedDB returns the process-wide pool for one connection string. Connection.Close
+// returns its connection to this pool instead of logging out, so each request no longer
+// pays a full TCP + TLS + login handshake per Connection.Open.
+func adodbSharedDB(driver, dsn string) (*sql.DB, error) {
+	key := driver + "\x00" + dsn
+	if db, ok := adodbSharedDBs.Load(key); ok {
+		return db.(*sql.DB), nil
+	}
+	db, err := sql.Open(driver, dsn)
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxIdleConns(32)
+	db.SetConnMaxIdleTime(5 * time.Minute)
+	if existing, loaded := adodbSharedDBs.LoadOrStore(key, db); loaded {
+		db.Close()
+		return existing.(*sql.DB), nil
+	}
+	return db, nil
 }
 
 // CleanupRequestResources deterministically releases native ADODB resources owned by one VM.
