@@ -3389,8 +3389,16 @@ func (c *Compiler) parseInlineIfStatement() {
 // always a block body.
 func (c *Compiler) parseInlineChainBranch(sameLine bool, parseBlock func()) {
 	if sameLine {
+		bodyStart := len(c.bytecode)
 		c.parseInlineIfBranchStatements()
 		if _, ok := c.next.(*vbscript.ASPCodeEndToken); !ok {
+			return
+		}
+		// "%>" ends the logical line like a newline: a non-empty branch is complete, and
+		// only an "End If" in the very next tag still closes it. An empty branch
+		// ("Else %>") continues as a block across the tag boundary.
+		if len(c.bytecode) > bodyStart {
+			c.consumeTagBoundaryKeyword(vbscript.KeywordEnd, vbscript.KeywordIf)
 			return
 		}
 	}

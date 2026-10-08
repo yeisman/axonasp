@@ -118,6 +118,11 @@ var ifBlockResolutionCases = []ifBlockResolutionCase{
 		wantOutput: "in",
 	},
 	{
+		name:       "same line else ending at tag boundary does not claim outer else",
+		source:     "<% Dim x, a : x = 1 : a = 1 %><% If x = 1 Then %>[<% If a = 1 Then Response.Write \"y\" Else Response.Write \"n\" %>]<% Else %>out<% End If %>",
+		wantOutput: "[y]",
+	},
+	{
 		name: "inline if closer does not consume end sub",
 		source: `<%
 Dim r
