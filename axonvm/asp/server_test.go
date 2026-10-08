@@ -62,6 +62,11 @@ func TestServerMapPath(t *testing.T) {
 	if !strings.HasSuffix(strings.ReplaceAll(relative, "\\", "/"), "/www/folder/local.asp") {
 		t.Fatalf("unexpected relative map path: %s", relative)
 	}
+
+	// Mapping an already-mapped path is a no-op (XMLDOM.load(Server.MapPath(...)) on Unix).
+	if again := server.MapPath(relative); again != relative {
+		t.Fatalf("re-mapping %s gave %s", relative, again)
+	}
 }
 
 // TestServerCreateObjectError verifies CreateObject unsupported behavior and last error tracking.

@@ -283,6 +283,16 @@ func (s *Server) MapPath(path string) string {
 		return absRoot
 	}
 
+	// Already a physical path inside the web root (e.g. XMLDOM.load(Server.MapPath(...)) on Unix,
+	// where it also starts with "/"): return it as-is instead of prefixing the root again.
+	if filepath.IsAbs(path) {
+		if absRoot, err := filepath.Abs(rootDir); err == nil {
+			if cleaned := filepath.Clean(path); cleaned == absRoot || strings.HasPrefix(cleaned, absRoot+string(filepath.Separator)) {
+				return cleaned
+			}
+		}
+	}
+
 	normalized := strings.ReplaceAll(path, "\\", "/")
 	if after, ok := strings.CutPrefix(normalized, "/"); ok {
 		fullPath := filepath.Join(rootDir, after)
