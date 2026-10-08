@@ -284,3 +284,22 @@ Response.Write s & ":" & (6 / 3) //trailing
 		t.Fatalf("got %q", got)
 	}
 }
+
+// TestVersionedProgIDs covers versioned Windows ProgIDs (and WinHttp) that legacy pages create,
+// which used to fail with 800401F3 "Invalid class string".
+func TestVersionedProgIDs(t *testing.T) {
+	got := runVBSAndGetOutput(t, `<%
+For Each id In Array("WinHttp.WinHttpRequest.5.1", "MSXML2.ServerXMLHTTP.3.0", "MSXML2.ServerXMLHTTP.6.0", "MSXML2.XMLHTTP.3.0", "MSXML2.XMLHTTP.6.0", "MSXML2.DOMDocument.3.0", "MSXML2.DOMDocument.6.0")
+	Set o = Server.CreateObject(id)
+	Response.Write IsObject(o) & ","
+Next
+Set w = CreateObject("WinHttp.WinHttpRequest.5.1")
+w.SetTimeouts 1000, 1000, 1000, 1000
+w.Option(4) = &H3300
+w.SetProxy 2, "proxy:8080"
+Response.Write "ok"
+%>`)
+	if got != "True,True,True,True,True,True,True,ok" {
+		t.Fatalf("got %q", got)
+	}
+}

@@ -7023,6 +7023,15 @@ func (vm *VM) dispatchNativeCall(objID int64, member string, args []Value) Value
 				vm.errClear()
 				progID := strings.TrimSpace(args[0].String())
 				progIDKey := strings.ToLower(progID)
+				// Versioned Windows ProgIDs are aliases of the same components.
+				switch progIDKey {
+				case "msxml2.serverxmlhttp.3.0", "msxml2.serverxmlhttp.6.0", "winhttp.winhttprequest.5.1":
+					progIDKey = "msxml2.serverxmlhttp"
+				case "msxml2.xmlhttp.3.0", "msxml2.xmlhttp.6.0":
+					progIDKey = "msxml2.xmlhttp"
+				case "msxml2.domdocument.3.0", "msxml2.domdocument.6.0":
+					progIDKey = "msxml2.domdocument"
+				}
 				if progIDKey == "g3stringbuilder" {
 					return vm.newG3StringBuilderObject()
 				}
