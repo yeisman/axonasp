@@ -1133,10 +1133,6 @@ func (c *Compiler) parseSetMemberAssignmentChain() {
 			continue
 		}
 
-		if hasCall {
-			panic(c.vbCompileError(vbscript.SyntaxError, "Expected member name after indexed call target in Set assignment"))
-		}
-
 		if p, ok := c.next.(*vbscript.PunctuationToken); !ok || p.Type != vbscript.PunctEqual {
 			panic(c.vbCompileError(vbscript.ExpectedEqual, "Expected '=' in Set member assignment"))
 		}
@@ -1145,6 +1141,11 @@ func (c *Compiler) parseSetMemberAssignmentChain() {
 		c.parseExpression(PrecNone)
 		// Set member assignment must preserve raw object references.
 		c.undoTrailingCoerce()
+		if hasCall {
+			// Obj.Item(k) = value: indexed property write, same lowering as the Let path.
+			c.emit(OpArraySet, midx, argCount)
+			return
+		}
 		c.emit(OpMemberSetSet, midx)
 		return
 	}

@@ -2,7 +2,7 @@
  * AxonASP Server
  * Copyright (C) 2026 G3pix Ltda. All rights reserved.
  *
- * Developed by Lucas Guimarães - G3pix Ltda
+ * Developed by Lucas Guimarães - G3pix Ltda, Yuri Eisman (@yeisman)
  * Contact: https://g3pix.com.br
  * Project URL: https://g3pix.com.br/axonasp
  *
@@ -250,5 +250,25 @@ func TestLargeSubroutineCompilation(t *testing.T) {
 	}
 	if got := countBytecodeOp(compiler.Bytecode(), OpArraySet); got != 500 {
 		t.Fatalf("expected 500 OpArraySet writes, got %d", got)
+	}
+}
+
+// TestSetIndexedMemberCallAssignment covers `Set arr(i).Item(k) = obj` (aspJSON's loadJSON),
+// which used to fail with "Expected member name after indexed call target in Set assignment".
+func TestSetIndexedMemberCallAssignment(t *testing.T) {
+	got := runVBSAndGetOutput(t, `<%
+Dim level(2), d
+Set level(0) = CreateObject("Scripting.Dictionary")
+level(0).Add "k", ""
+Set level(0).Item("k") = CreateObject("Scripting.Dictionary")
+Set level(1) = level(0).Item("k")
+level(1).Item("x") = "ok"
+Response.Write TypeName(level(0).Item("k")) & ":" & level(0)("k")("x")
+Set d = CreateObject("Scripting.Dictionary")
+Set d.Item("a") = level(1)
+Response.Write ":" & d("a")("x")
+%>`)
+	if got != "Dictionary:ok:ok" {
+		t.Fatalf("got %q", got)
 	}
 }
