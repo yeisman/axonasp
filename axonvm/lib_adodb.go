@@ -1732,6 +1732,9 @@ func (vm *VM) adodbRecordsetLoadCurrentSQLResultSet(rs *adodbRecordset) {
 			if i < len(rs.columnTypes) && rs.columnTypes[i] == "UNIQUEIDENTIFIER" {
 				value = adodbSQLServerGUIDText(value)
 			}
+			if i < len(rs.columnTypes) {
+				value = adodbMSSQLNumeric(rs.columnTypes[i], value)
+			}
 			adodbStoreColumnValue(rowMap, cols, i, vm.adodbValueToVMValue(value))
 		}
 		rs.data = append(rs.data, rowMap)
@@ -1762,6 +1765,21 @@ func (vm *VM) adodbRecordsetLoadCurrentSQLResultSet(rs *adodbRecordset) {
 
 // adodbTypeFromDatabaseType maps database/sql metadata to the ADO DataTypeEnum
 // values consumed by legacy code through ADODB.Field.Type.
+// adodbMSSQLNumeric converts go-mssqldb's text bytes for DECIMAL/NUMERIC/MONEY
+// columns to a Double, so VBScript "+" adds them like classic ADO's Decimal/Currency
+// instead of concatenating strings.
+func adodbMSSQLNumeric(databaseType string, v any) any {
+	switch databaseType {
+	case "DECIMAL", "NUMERIC", "MONEY", "SMALLMONEY":
+		if b, ok := v.([]byte); ok {
+			if f, err := strconv.ParseFloat(string(b), 64); err == nil {
+				return f
+			}
+		}
+	}
+	return v
+}
+
 func adodbTypeFromDatabaseType(databaseType string) int {
 	switch strings.ToUpper(strings.TrimSpace(databaseType)) {
 	case "BIT", "BOOLEAN", "BOOL":
