@@ -2,7 +2,7 @@
  * AxonASP Server
  * Copyright (C) 2026 G3pix Ltda. All rights reserved.
  *
- * Developed by Lucas Guimarães - G3pix Ltda
+ * Developed by Lucas Guimarães - G3pix Ltda, Yuri Eisman (@yeisman)
  * Contact: https://g3pix.com.br
  * Project URL: https://g3pix.com.br/axonasp
  *
@@ -4257,6 +4257,15 @@ aspExecLoop:
 						// Write the modified array back to the field so the
 						// change is visible through the class member.
 						vm.assignRuntimeClassField(target, memberName, fieldValue, requirePublic)
+						continue
+					}
+					// obj.Field(key) = value where Field holds a native object such as a
+					// Scripting.Dictionary: assign through that object's default property.
+					if fieldValue.Type == VTNativeObject {
+						callArgs := vm.ensureCombineBuffer(argCount + 1)[:0]
+						callArgs = append(callArgs, indexes...)
+						callArgs = append(callArgs, value)
+						_ = vm.dispatchNativeCall(fieldValue.Num, "", callArgs)
 						continue
 					}
 				}
