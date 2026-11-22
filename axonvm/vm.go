@@ -3239,7 +3239,7 @@ aspExecLoop:
 		case OpWrite:
 			val := vm.pop()
 			if vm.output != nil {
-				io.WriteString(vm.output, vm.valueToString(val))
+				io.WriteString(vm.output, vm.vbsWriteString(val))
 			}
 
 		case OpWriteN:
@@ -3263,7 +3263,7 @@ aspExecLoop:
 				// Accumulate all parts into the reusable scratch buffer, then write once.
 				vm.stringWorkBuffer = vm.stringWorkBuffer[:0]
 				for i := range n {
-					vm.stringWorkBuffer = append(vm.stringWorkBuffer, vm.valueToString(parts[i])...)
+					vm.stringWorkBuffer = append(vm.stringWorkBuffer, vm.vbsWriteString(parts[i])...)
 				}
 				if len(vm.stringWorkBuffer) > 0 {
 					_, _ = vm.output.Write(vm.stringWorkBuffer)
@@ -8582,6 +8582,26 @@ func (vm *VM) valueToString(v Value) string {
 }
 
 // valueToResponseString applies Response.Write coercion rules for mixed VBScript/JScript values.
+// vbsWriteString converts a value for VBScript Response.Write / <%= %> output.
+// Like IIS, writing Null outputs nothing (CStr(Null) would raise, and String()
+// would yield the literal text "Null").
+func (vm *VM) vbsWriteString(v Value) string {
+	if v.Type == VTArgRef {
+		v = vm.stack[int(v.Num)]
+	}
+	v = resolveCallable(vm, v)
+	if v.Type == VTNativeObject {
+		// ADODB.Field (<%=rs("col")%>) writes its default Value property.
+		if adodbDefault, handled := vm.dispatchADODBFieldPropertyGet(v.Num, "__default__"); handled {
+			v = adodbDefault
+		}
+	}
+	if v.Type == VTNull {
+		return ""
+	}
+	return vm.valueToString(v)
+}
+
 func (vm *VM) valueToResponseString(v Value) string {
 	v = resolveCallable(vm, v)
 	// JScript ASP expression blocks use the JScript string conversion rules.
@@ -8592,7 +8612,7 @@ func (vm *VM) valueToResponseString(v Value) string {
 	}
 	isJS := vm.engineMode == EngineModeJavaScript || len(vm.jsCallStack) > 0 || vm.jsActiveEnvID != 0 || vm.jsRootEnvID != 0
 	if !isJS {
-		return vm.valueToString(v)
+		return vm.vbsWriteString(v)
 	}
 
 	switch v.Type {

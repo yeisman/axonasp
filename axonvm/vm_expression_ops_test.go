@@ -2,7 +2,7 @@
  * AxonASP Server
  * Copyright (C) 2026 G3pix Ltda. All rights reserved.
  *
- * Developed by Lucas Guimarães - G3pix Ltda
+ * Developed by Lucas Guimarães - G3pix Ltda, Yuri Eisman (@yeisman)
  * Contact: https://g3pix.com.br
  * Project URL: https://g3pix.com.br/axonasp
  *
@@ -50,7 +50,7 @@ func TestVMCompileSupportsAllVBScriptLiterals(t *testing.T) {
 	if len(parts) != 8 {
 		t.Fatalf("unexpected literal output: %q", output.String())
 	}
-	if parts[0] != "True" || parts[1] != "False" || parts[2] != "Null" || parts[3] != "" || parts[4] != "" || parts[5] != "15" || parts[6] != "15" {
+	if parts[0] != "True" || parts[1] != "False" || parts[2] != "" || parts[3] != "" || parts[4] != "" || parts[5] != "15" || parts[6] != "15" {
 		t.Fatalf("unexpected literal rendering: %q", output.String())
 	}
 	if !strings.Contains(parts[7], "2026-03-13") && !strings.Contains(parts[7], "3/13/2026") && !strings.Contains(parts[7], "13/03/2026") {
@@ -88,7 +88,7 @@ func TestVMBinaryOperatorsStackReductionRegression(t *testing.T) {
 	source := `<%
 Dim n
 n = Null
-%><%= (((((10 + 5) - 3) * 2) \ 4) Mod 5) ^ 2 %>|<%= ("A" & "x") = "Ax" %>|<%= (5 > 3) And (2 < 4) %>|<%= 7 <> 7 %>|<%= 2 + 3 + 4 + 5 %>|<%= ((1 + 2) + (3 + 4)) + (5 + 6) %>|<%= (True Xor False) Eqv True %>|<%= False Imp True %>|<%= n >= 1 %>`
+%><% Function S(v) : If IsNull(v) Then S = "Null" Else S = CStr(v) : End Function %><%= S((((((10 + 5) - 3) * 2) \ 4) Mod 5) ^ 2) %>|<%= S(("A" & "x") = "Ax") %>|<%= S((5 > 3) And (2 < 4)) %>|<%= S(7 <> 7) %>|<%= S(2 + 3 + 4 + 5) %>|<%= S(((1 + 2) + (3 + 4)) + (5 + 6)) %>|<%= S((True Xor False) Eqv True) %>|<%= S(False Imp True) %>|<%= S(n >= 1) %>`
 	compiler := NewASPCompiler(source)
 	if err := compiler.Compile(); err != nil {
 		t.Fatalf("compile failed: %v", err)
@@ -138,7 +138,7 @@ func TestVMSupportsBitwiseNumericOperators(t *testing.T) {
 // operations, while '&' coerces Null to an empty string as in Classic ASP/VBScript.
 func TestVMNullPropagationInArithmetic(t *testing.T) {
 	// Null propagates through +, -, *, /, =, Not, and unary negation.
-	source := `<% x = Null %><%= x + 1 %>|<%= x - 1 %>|<%= x * 5 %>|<%= x / 2 %>|<%= x & "hi" %>|<%= x = 1 %>|<%= Not x %>|<%= -x %>`
+	source := `<% Function S(v) : If IsNull(v) Then S = "Null" Else S = CStr(v) : End Function %><% x = Null %><%= S(x + 1) %>|<%= S(x - 1) %>|<%= S(x * 5) %>|<%= S(x / 2) %>|<%= S(x & "hi") %>|<%= S(x = 1) %>|<%= S(Not x) %>|<%= S(-x) %>`
 	compiler := NewASPCompiler(source)
 	if err := compiler.Compile(); err != nil {
 		t.Fatalf("compile failed: %v", err)
@@ -187,7 +187,7 @@ func TestVMConcatNullCoercesToEmpty(t *testing.T) {
 // TestVMNullLogicalShortCircuit verifies VBScript short-circuit rules for logical operators with Null.
 // Null And False = False, Null Or True = True, Null Xor True = Null, Null Eqv Nothing = Null.
 func TestVMNullLogicalShortCircuit(t *testing.T) {
-	source := `<% x = Null %><%= x And False %>|<%= x And True %>|<%= x Or True %>|<%= x Or False %>|<%= x Xor True %>|<%= False Imp x %>|<%= x Imp True %>`
+	source := `<% Function S(v) : If IsNull(v) Then S = "Null" Else S = CStr(v) : End Function %><% x = Null %><%= S(x And False) %>|<%= S(x And True) %>|<%= S(x Or True) %>|<%= S(x Or False) %>|<%= S(x Xor True) %>|<%= S(False Imp x) %>|<%= S(x Imp True) %>`
 	compiler := NewASPCompiler(source)
 	if err := compiler.Compile(); err != nil {
 		t.Fatalf("compile failed: %v", err)
@@ -219,7 +219,7 @@ func TestVMPlusOperatorClassicVBScriptSemantics(t *testing.T) {
 Dim e, n
 e = Empty
 n = Null
-%><%= "Alpha" + "Beta" %>|<%= 2 + "3" %>|<%= e + "Text" %>|<%= e + 7 %>|<%= n + 1 %>`
+%><% Function S(v) : If IsNull(v) Then S = "Null" Else S = CStr(v) : End Function %><%= S("Alpha" + "Beta") %>|<%= S(2 + "3") %>|<%= S(e + "Text") %>|<%= S(e + 7) %>|<%= S(n + 1) %>`
 	compiler := NewASPCompiler(source)
 	if err := compiler.Compile(); err != nil {
 		t.Fatalf("compile failed: %v", err)
@@ -319,7 +319,7 @@ func TestVMLessThanOperatorSemantics(t *testing.T) {
 		want   string
 	}{
 		// Null propagation: Null < anything → Null, anything < Null → Null
-		{`<% Dim x : x = Null %><%= x < 5 %>|<%= 5 < x %>|<%= x < x %>`, "Null|Null|Null"},
+		{`<% Function S(v) : If IsNull(v) Then S = "Null" Else S = CStr(v) : End Function %><% Dim x : x = Null %><%= S(x < 5) %>|<%= S(5 < x) %>|<%= S(x < x) %>`, "Null|Null|Null"},
 		// String comparison (binary mode): "b" < "a" → False
 		{`<%= "b" < "a" %>|<%= "a" < "b" %>`, "False|True"},
 		// Numeric comparison

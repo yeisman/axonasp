@@ -4,7 +4,7 @@
  * AxonASP Server
  * Copyright (C) 2026 G3pix Ltda. All rights reserved.
  *
- * Developed by Lucas Guimarães - G3pix Ltda
+ * Developed by Lucas Guimarães - G3pix Ltda, Yuri Eisman (@yeisman)
  * Contact: https://g3pix.com.br
  * Project URL: https://g3pix.com.br/axonasp
  *
@@ -9373,7 +9373,7 @@ Response.Write TypeName(v5) & ":" & v5
 	}
 	host.Response().Flush()
 
-	expected := "Double:-5.5|Integer:-5|Integer:0|Integer:-1|Null:Null"
+	expected := "Double:-5.5|Integer:-5|Integer:0|Integer:-1|Null:" // Response.Write of Null outputs nothing, as in IIS
 	if got := output.String(); got != expected {
 		t.Fatalf("expected %q, got %q", expected, got)
 	}
