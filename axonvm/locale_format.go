@@ -564,6 +564,13 @@ func parseLocalizedTimeValue(text string, location *time.Location, profile built
 		"02/01/2006 15:04",
 		"02/01/2006",
 	}
+	// Month-name dates VBScript accepts ("05-Aug-26", "5 Aug 2026", "Aug 5, 2026",
+	// "August 5, 2026"), each optionally followed by a time.
+	for _, datePart := range vbsMonthNameDateLayouts {
+		for _, timePart := range vbsOptionalTimeLayouts {
+			layouts = append(layouts, datePart+timePart)
+		}
+	}
 	seen := make(map[string]struct{}, len(layouts))
 	for _, layout := range layouts {
 		if strings.TrimSpace(layout) == "" {
@@ -574,12 +581,14 @@ func parseLocalizedTimeValue(text string, location *time.Location, profile built
 		}
 		seen[layout] = struct{}{}
 		if parsed, err := monday.ParseInLocation(layout, text, location, profile.mondayLocale); err == nil {
+			parsed = vbsTwoDigitYear(parsed, layout)
 			if parsed.Year() == 0 {
 				parsed = time.Date(1899, time.December, 30, parsed.Hour(), parsed.Minute(), parsed.Second(), parsed.Nanosecond(), location)
 			}
 			return parsed
 		}
 		if parsed, err := time.ParseInLocation(layout, text, location); err == nil {
+			parsed = vbsTwoDigitYear(parsed, layout)
 			if parsed.Year() == 0 {
 				parsed = time.Date(1899, time.December, 30, parsed.Hour(), parsed.Minute(), parsed.Second(), parsed.Nanosecond(), location)
 			}
@@ -587,6 +596,27 @@ func parseLocalizedTimeValue(text string, location *time.Location, profile built
 		}
 	}
 	return time.Time{}
+}
+
+var vbsMonthNameDateLayouts = []string{
+	"2-Jan-2006", "2-Jan-06", "2-January-2006", "2-January-06",
+	"2 Jan 2006", "2 Jan 06", "2 January 2006", "2 January 06",
+	"Jan 2, 2006", "Jan 2 2006", "January 2, 2006", "January 2 2006",
+	"2/Jan/2006", "2/Jan/06",
+}
+
+var vbsOptionalTimeLayouts = []string{"", " 15:04:05", " 15:04", " 3:04:05 PM", " 3:04 PM"}
+
+// vbsTwoDigitYear applies the VBScript century window to a two-digit year that Go
+// parsed with its own window (69-99 -> 19xx): 00-29 -> 20xx, 30-99 -> 19xx.
+func vbsTwoDigitYear(t time.Time, layout string) time.Time {
+	if !strings.Contains(layout, "06") || strings.Contains(layout, "2006") {
+		return t
+	}
+	if yy := t.Year() % 100; yy >= 30 && t.Year() >= 2000 {
+		return t.AddDate(-100, 0, 0)
+	}
+	return t
 }
 
 func rewriteJScriptTimezones(text string) string {
