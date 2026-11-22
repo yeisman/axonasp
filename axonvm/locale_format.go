@@ -2,7 +2,7 @@
  * AxonASP Server
  * Copyright (C) 2026 G3pix Ltda. All rights reserved.
  *
- * Developed by Lucas Guimarães - G3pix Ltda
+ * Developed by Lucas Guimarães - G3pix Ltda, Yuri Eisman (@yeisman)
  * Contact: https://g3pix.com.br
  * Project URL: https://g3pix.com.br/axonasp
  *
@@ -540,6 +540,14 @@ func parseLocalizedTimeValue(text string, location *time.Location, profile built
 		"2006-01-02 15:04:05",
 		"2006-01-02 15:04",
 		"2006-01-02",
+		// Year-first dates are unambiguous and VBScript accepts them with "/" or "-"
+		// and with or without zero padding (CDate("2026/10/01"), Month("2026-1-5")).
+		"2006/1/2 15:04:05",
+		"2006/1/2 15:04",
+		"2006/1/2",
+		"2006-1-2 15:04:05",
+		"2006-1-2 15:04",
+		"2006-1-2",
 		time.RFC3339,
 		localizedLongDateLayout(profile),
 		profile.shortDateLayout + " " + profile.longTimeLayout,
