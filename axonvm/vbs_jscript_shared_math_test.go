@@ -21,7 +21,10 @@ package axonvm
  * made available under this same license terms.
  */
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 // TestVBSUsesJScriptMathFromServerBlock checks that VBScript can call the JScript
 // Math object when the page has a server-side JScript block, matching names
@@ -54,5 +57,38 @@ Response.Write "" & (Err.Number <> 0) & "|" & IsEmpty(x)
 	want := "True|True"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// TestVBSUsesJScriptMathAfterPooledReuse checks that the Math bridge works again
+// when a pooled VM runs the same page for a later request.
+func TestVBSUsesJScriptMathAfterPooledReuse(t *testing.T) {
+	src := `<script language="javascript" runat="server">
+function jsTwice(x) { return x * 2; }
+</script>
+<%
+Response.Write Math.Ceil(25 / 10)
+%>`
+	compiler := NewASPCompiler(src)
+	if err := compiler.Compile(); err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+	vm := NewVMFromCompiler(compiler)
+	vm.captureBaseProgramState()
+	for run := 1; run <= 3; run++ {
+		if run > 1 {
+			vm.resetForReuse()
+		}
+		host := NewMockHost()
+		var buf bytes.Buffer
+		host.SetOutput(&buf)
+		vm.SetHost(host)
+		if err := vm.Run(); err != nil {
+			t.Fatalf("run %d failed: %v", run, err)
+		}
+		host.Response().Flush()
+		if got := buf.String(); got != "3" {
+			t.Fatalf("run %d: got %q, want %q", run, got, "3")
+		}
 	}
 }

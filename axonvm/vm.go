@@ -1992,6 +1992,7 @@ func (vm *VM) Run() (err error) {
 				}
 				vm.jsActiveEnvID = 0
 				vm.jsRootEnvID = 0
+				vm.jsIntrinsicsBridgedEnv = 0
 				vm.jsCallStack = nil
 				vm.jsTryStack = nil
 				vm.jsErrStack = nil
