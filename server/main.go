@@ -4,7 +4,7 @@
  * AxonASP Server
  * Copyright (C) 2026 G3pix Ltda. All rights reserved.
  *
- * Developed by Lucas Guimarães - G3pix Ltda
+ * Developed by Lucas Guimarães - G3pix Ltda, Yuri Eisman (@yeisman)
  * Contact: https://g3pix.com.br
  * Project URL: https://g3pix.com.br/axonasp
  *
@@ -64,6 +64,7 @@ var (
 	VirtualAppPath                = ""
 	EnableWebConfig               = true
 	EnableDirectoryListing        = false
+	CaseInsensitivePaths          = false
 	ExposeServerHeaders           = true
 	DirectoryListingTemplate      = "./www/axonasp-pages/directory-listing.html"
 	DefaultPages                  = []string{"index.asp", "default.asp", "index.html", "default.html", "default.asp"}
@@ -178,6 +179,7 @@ func loadServerConfig() {
 	}
 	EnableWebConfig = v.GetBool("server.enable_webconfig")
 	EnableDirectoryListing = v.GetBool("server.enable_directory_listing")
+	CaseInsensitivePaths = v.GetBool("server.case_insensitive_paths")
 	ExposeServerHeaders = !v.IsSet("server.expose_server_headers") || v.GetBool("server.expose_server_headers")
 	if templatePath := strings.TrimSpace(v.GetString("server.directory_listing_template")); templatePath != "" {
 		DirectoryListingTemplate = templatePath
@@ -577,6 +579,19 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	info, err := os.Stat(fullPath)
+	if os.IsNotExist(err) && CaseInsensitivePaths {
+		// IIS resolves URLs case-insensitively, so applications migrated from
+		// Windows often reference files with a casing that differs from disk.
+		if resolved, ok := resolveRequestPathCaseInsensitive(absRoot, relativePath); ok {
+			if !strings.HasPrefix(resolved, absRoot) || isBlockedExtension(strings.ToLower(filepath.Ext(resolved))) ||
+				isBlockedFile(strings.ToLower(filepath.Base(resolved))) || isBlockedDirectory(resolved) {
+				serveErrorPage(w, r, http.StatusNotFound)
+				return
+			}
+			fullPath = resolved
+			info, err = os.Stat(fullPath)
+		}
+	}
 	if os.IsNotExist(err) {
 		serveErrorPage(w, r, http.StatusNotFound)
 		return
@@ -634,6 +649,51 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	executeASP(w, r, fullPath)
+}
+
+// resolveRequestPathCaseInsensitive maps a request path that does not exist with its
+// literal casing to an existing file or directory under absRoot, matching each path
+// segment case-insensitively. A segment whose exact casing exists is always preferred;
+// otherwise the first case-insensitive match in directory order is used, so the result
+// is deterministic when several entries differ only by case.
+func resolveRequestPathCaseInsensitive(absRoot string, relativePath string) (string, bool) {
+	cleaned := filepath.Clean(filepath.FromSlash(relativePath))
+	if cleaned == "." || cleaned == "" {
+		return "", false
+	}
+	current := absRoot
+	for _, part := range strings.Split(cleaned, string(filepath.Separator)) {
+		if part == "" || part == "." {
+			continue
+		}
+		if part == ".." {
+			return "", false
+		}
+		exact := filepath.Join(current, part)
+		if _, err := os.Lstat(exact); err == nil {
+			current = exact
+			continue
+		}
+		entries, err := os.ReadDir(current)
+		if err != nil {
+			return "", false
+		}
+		matched := ""
+		for _, entry := range entries {
+			if strings.EqualFold(entry.Name(), part) {
+				matched = entry.Name()
+				break
+			}
+		}
+		if matched == "" {
+			return "", false
+		}
+		current = filepath.Join(current, matched)
+	}
+	if _, err := os.Stat(current); err != nil {
+		return "", false
+	}
+	return current, true
 }
 
 // isASPExecutionExtension reports whether a file should be executed based on the current engine mode.
