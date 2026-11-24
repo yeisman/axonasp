@@ -231,6 +231,9 @@ enable_webconfig = true
 # When enabled, the server will allow directory listing for directories that do not contain a default page. This means that if a client requests a directory and there is no default page (e.g., index.html) in that directory, the server will return a list of the files and subdirectories within that directory. This can be useful for development and debugging purposes, but it can also pose a security risk if sensitive files are exposed. It's generally recommended to keep this setting disabled in production environments to prevent unauthorized access to directory contents.  
 enable_directory_listing = true
 
+# When enabled, a request path that does not exist with its exact casing is matched against the files on disk case-insensitively, the way IIS on Windows resolves URLs. Enable it for applications migrated from IIS that reference files with inconsistent casing (e.g. "scripts/App.js" for "Scripts/app.js") when running on a case-sensitive file system such as Linux. Paths with the exact casing are served without any extra lookup. Blocked files, extensions and directories are still enforced on the resolved path.
+case_insensitive_paths = false
+
 # The path to the HTML template used for directory listing when enable_directory_listing is set to true. This template should include placeholders (see the default directory listing template) where the server will inject the list of files and directories. You can customize this template to match the design of your website and provide a better user experience when directory listing is enabled. Make sure to set this to the correct path where your custom directory listing template is located.
 directory_listing_template = "./www/axonasp-pages/directory-listing.html"
 

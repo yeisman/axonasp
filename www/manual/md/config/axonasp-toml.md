@@ -683,6 +683,19 @@ When enabled, displays directory contents if no default page is found (security 
 enable_directory_listing = false  # Production setting
 ```
 
+### case_insensitive_paths
+
+**Type:** Boolean  
+**Default:** `false`  
+**Environment Variable:** `SERVER_CASE_INSENSITIVE_PATHS`
+
+When enabled, a request path that does not exist with its exact casing is matched against the files on disk case-insensitively, the way IIS resolves URLs on Windows. Use it for applications migrated from IIS that reference files with inconsistent casing (for example `<script src="scripts/App.js">` for `Scripts/app.js`) when running on a case-sensitive file system such as Linux. Paths with the exact casing are served without any extra lookup, and blocked files, extensions and directories are still enforced on the resolved path.
+
+**Example:**
+```toml
+case_insensitive_paths = true  # IIS-compatible URL casing on Linux
+```
+
 ### directory_listing_template
 
 **Type:** String (path)  
